@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { CONFIG } from "./config.js";
 
 // ─── VINTAGE TERMINOLOGY DATABASE ─────────────────────────────────
 const VINTAGE_TERMS = [
@@ -139,6 +140,38 @@ export default function App() {
   const [patternText, setPatternText] = useState("");
   const [hookFilter, setHookFilter] = useState("all");
   const [yarnSearch, setYarnSearch] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailStatus, setEmailStatus] = useState(""); // "", "sending", "success", "error"
+
+  const handleWaitlist = useCallback(async (e) => {
+    if (e) e.preventDefault();
+    if (!email || !email.includes("@")) return;
+    setEmailStatus("sending");
+    try {
+      const res = await fetch(CONFIG.WAITLIST_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, source: "vintage-pattern-decoder", timestamp: new Date().toISOString() }),
+      });
+      if (res.ok) {
+        setEmailStatus("success");
+        setEmail("");
+      } else {
+        setEmailStatus("error");
+      }
+    } catch {
+      setEmailStatus("error");
+    }
+  }, [email]);
+
+  const handleCheckout = useCallback((plan) => {
+    const link = plan === "monthly" ? CONFIG.STRIPE_MONTHLY_LINK : CONFIG.STRIPE_YEARLY_LINK;
+    if (link) {
+      window.open(link, "_blank");
+    } else {
+      setActiveTab("pricing");
+    }
+  }, []);
 
   const filteredTerms = useMemo(() => {
     if (!searchTerm) return VINTAGE_TERMS;
@@ -171,6 +204,7 @@ export default function App() {
     { id: "glossary", label: "Vintage Glossary" },
     { id: "hooks", label: "Hook & Needle Sizes" },
     { id: "yarn", label: "Yarn Substitution" },
+    { id: "pricing", label: "Pro" },
   ];
 
   const accentColor = "#a0522d";
@@ -324,35 +358,43 @@ export default function App() {
             }}>
               <div style={{ flex: "1 1 280px" }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "#c4956a", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
-                  Coming Soon — Pro Edition
+                  Pro Edition
                 </div>
                 <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, margin: "0 0 6px", color: "#f5ebe0" }}>
                   Vintage Pattern Decoder Pro
                 </h3>
                 <p style={{ fontSize: 13, color: "#a09080", lineHeight: 1.55, margin: 0 }}>
-                  Unlimited pattern translations. Full vintage term database. Printable conversion charts. Yarn substitution engine. New features added monthly — era-specific pattern guides, AI-powered full pattern rewriting, and more.
+                  Unlimited pattern translations. Full vintage term database. Printable conversion charts. Yarn substitution engine. New features added monthly.
                 </p>
                 <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
-                  <div style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(196,149,106,0.15)", border: "1px solid rgba(196,149,106,0.3)" }}>
-                    <span style={{ fontSize: 22, fontWeight: 700, color: "#f5ebe0" }}>$3.99</span>
+                  <button onClick={() => handleCheckout("monthly")} style={{
+                    padding: "8px 16px", borderRadius: 8,
+                    background: "rgba(196,149,106,0.15)", border: "1px solid rgba(196,149,106,0.3)",
+                    cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
+                  }}>
+                    <span style={{ fontSize: 22, fontWeight: 700, color: "#f5ebe0" }}>{CONFIG.MONTHLY_PRICE}</span>
                     <span style={{ fontSize: 12, color: "#a09080" }}>/month</span>
-                  </div>
+                  </button>
                   <span style={{ fontSize: 12, color: "#7d6b5d" }}>or</span>
-                  <div style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(196,149,106,0.15)", border: "1px solid rgba(196,149,106,0.3)" }}>
-                    <span style={{ fontSize: 22, fontWeight: 700, color: "#f5ebe0" }}>$29.99</span>
+                  <button onClick={() => handleCheckout("yearly")} style={{
+                    padding: "8px 16px", borderRadius: 8,
+                    background: "rgba(196,149,106,0.15)", border: "1px solid rgba(196,149,106,0.3)",
+                    cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
+                  }}>
+                    <span style={{ fontSize: 22, fontWeight: 700, color: "#f5ebe0" }}>{CONFIG.YEARLY_PRICE}</span>
                     <span style={{ fontSize: 12, color: "#a09080" }}>/year</span>
-                    <span style={{ fontSize: 11, color: "#4ade80", marginLeft: 6 }}>Save 37%</span>
-                  </div>
+                    <span style={{ fontSize: 11, color: "#4ade80", marginLeft: 6 }}>Save {CONFIG.YEARLY_SAVINGS}</span>
+                  </button>
                 </div>
               </div>
-              <button style={{
+              <button onClick={() => setActiveTab("pricing")} style={{
                 padding: "12px 24px", borderRadius: 8,
                 background: `linear-gradient(135deg, ${accentColor}, #c4956a)`,
                 border: "none", color: "#fff", fontSize: 14, fontWeight: 600,
                 cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
                 whiteSpace: "nowrap",
               }}>
-                Join the Waitlist
+                Get Pro →
               </button>
             </div>
           </div>
@@ -615,6 +657,153 @@ export default function App() {
 
           <div style={{ marginTop: 16, padding: 14, borderRadius: 10, background: accentLight, border: `1px solid ${accentColor}20`, fontSize: 13, color: "#6d5c4e", lineHeight: 1.5 }}>
             <strong>Always swatch first!</strong> Even when a modern yarn is the same weight category, fiber content and twist can affect gauge and drape. Knit or crochet a gauge swatch and compare to the pattern's stated tension before starting your project.
+          </div>
+        </div>
+      )}
+
+      {/* ─── PRICING PAGE ─── */}
+      {activeTab === "pricing" && (
+        <div style={{ maxWidth: 800, margin: "0 auto", padding: "32px 20px 60px" }}>
+          <button onClick={() => setActiveTab("home")} style={{ background: "none", border: "none", color: "#7d6b5d", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 20, fontFamily: "'IBM Plex Sans', sans-serif" }}>
+            ← Back
+          </button>
+
+          <div style={{ textAlign: "center", marginBottom: 36 }}>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, margin: "0 0 8px", color: darkBg }}>
+              Unlock the Full Decoder
+            </h2>
+            <p style={{ fontSize: 15, color: "#7d6b5d", margin: 0, maxWidth: 500, marginLeft: "auto", marginRight: "auto" }}>
+              Everything you need to decode any vintage pattern — plus new features every month.
+            </p>
+          </div>
+
+          {/* Pricing Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 32 }}>
+            {/* Monthly */}
+            <div style={{
+              background: "#fff", borderRadius: 16, padding: "28px 24px",
+              border: "1px solid #e8ddd0", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#7d6b5d", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>Monthly</div>
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 42, fontWeight: 800, color: darkBg }}>{CONFIG.MONTHLY_PRICE}</span>
+                <span style={{ fontSize: 15, color: "#7d6b5d" }}>/month</span>
+              </div>
+              <p style={{ fontSize: 13, color: "#7d6b5d", marginBottom: 20 }}>Cancel anytime. No commitment.</p>
+              <button onClick={() => handleCheckout("monthly")} style={{
+                width: "100%", padding: "13px 0", borderRadius: 10,
+                border: `2px solid ${accentColor}`, background: "#fff",
+                color: accentColor, fontSize: 15, fontWeight: 600,
+                cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
+              }}>
+                {CONFIG.STRIPE_MONTHLY_LINK ? "Subscribe Monthly" : "Join Waitlist"}
+              </button>
+            </div>
+
+            {/* Yearly */}
+            <div style={{
+              background: "#fff", borderRadius: 16, padding: "28px 24px",
+              border: `2px solid ${accentColor}`, textAlign: "center",
+              position: "relative", boxShadow: `0 8px 24px ${accentColor}20`,
+            }}>
+              <div style={{
+                position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)",
+                padding: "4px 16px", borderRadius: 12,
+                background: `linear-gradient(135deg, ${accentColor}, #c4956a)`,
+                color: "#fff", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                letterSpacing: "0.06em", whiteSpace: "nowrap",
+              }}>Best Value</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#7d6b5d", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>Yearly</div>
+              <div style={{ marginBottom: 4 }}>
+                <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 42, fontWeight: 800, color: darkBg }}>{CONFIG.YEARLY_PRICE}</span>
+                <span style={{ fontSize: 15, color: "#7d6b5d" }}>/year</span>
+              </div>
+              <div style={{ fontSize: 13, color: "#4ade80", fontWeight: 600, marginBottom: 16 }}>Save {CONFIG.YEARLY_SAVINGS} — that's $2.50/month</div>
+              <button onClick={() => handleCheckout("yearly")} style={{
+                width: "100%", padding: "13px 0", borderRadius: 10,
+                border: "none",
+                background: `linear-gradient(135deg, ${accentColor}, #c4956a)`,
+                color: "#fff", fontSize: 15, fontWeight: 600,
+                cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
+                boxShadow: `0 4px 12px ${accentColor}40`,
+              }}>
+                {CONFIG.STRIPE_YEARLY_LINK ? "Subscribe Yearly" : "Join Waitlist"}
+              </button>
+            </div>
+          </div>
+
+          {/* What's Included */}
+          <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", border: "1px solid #e8ddd0", marginBottom: 24 }}>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, margin: "0 0 16px", color: darkBg }}>
+              What's included in Pro
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              {[
+                "Unlimited pattern translations",
+                "Full 200+ vintage term database",
+                "Printable PDF conversion charts",
+                "Complete yarn substitution engine",
+                "Historical era detection",
+                "Vintage sizing calculator",
+                "AI pattern rewriting (coming soon)",
+                "Priority new feature access",
+                "Batch pattern processing",
+                "Custom abbreviation lists",
+                "Export translated patterns",
+                "Email support from a 30-yr expert",
+              ].map((f, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#3d2b1f" }}>
+                  <span style={{ color: "#4ade80", fontSize: 16, flexShrink: 0 }}>✓</span>
+                  {f}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Email Waitlist */}
+          <div style={{
+            background: accentLight, borderRadius: 14, padding: "24px 28px",
+            border: `1px solid ${accentColor}20`, textAlign: "center",
+          }}>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, margin: "0 0 6px", color: darkBg }}>
+              {CONFIG.STRIPE_MONTHLY_LINK ? "Stay Updated" : "Not ready yet? Join the waitlist."}
+            </h3>
+            <p style={{ fontSize: 13, color: "#7d6b5d", margin: "0 0 14px" }}>
+              Get notified about new features, vintage pattern tips, and subscriber-only content.
+            </p>
+            {emailStatus === "success" ? (
+              <div style={{ padding: 14, borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: 14, fontWeight: 600 }}>
+                You're on the list! We'll be in touch.
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 8, maxWidth: 440, margin: "0 auto", flexWrap: "wrap" }}>
+                <input
+                  type="email" value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  onKeyDown={e => e.key === "Enter" && handleWaitlist()}
+                  style={{
+                    flex: "1 1 200px", padding: "11px 14px", borderRadius: 8,
+                    border: "1px solid #d4c4b0", background: "#fff", fontSize: 14,
+                    fontFamily: "'IBM Plex Sans', sans-serif", color: "#3d2b1f",
+                  }}
+                />
+                <button onClick={handleWaitlist} disabled={emailStatus === "sending"} style={{
+                  padding: "11px 20px", borderRadius: 8, border: "none",
+                  background: `linear-gradient(135deg, ${accentColor}, #c4956a)`,
+                  color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                  opacity: emailStatus === "sending" ? 0.7 : 1,
+                }}>
+                  {emailStatus === "sending" ? "Sending..." : "Notify Me"}
+                </button>
+              </div>
+            )}
+            {emailStatus === "error" && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#dc2626" }}>
+                Something went wrong. Try again or email us directly.
+              </div>
+            )}
           </div>
         </div>
       )}

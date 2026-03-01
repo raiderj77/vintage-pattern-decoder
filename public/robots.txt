@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://fibertools.app/vintage-decoder/sitemap.xml
